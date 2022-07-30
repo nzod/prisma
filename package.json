@@ -1,8 +1,8 @@
 {
-  "name": "@js-templates/typescript-library",
+  "name": "@nzod/prisma",
   "version": "0.0.0-set-by-ci",
-  "description": "Your Library Description",
-  "author": "Your Name",
+  "description": "Generate N'Zod contracts and DTOs from Prisma Schema",
+  "author": "Evgeny Zakharov",
   "main": "dist/index.js",
   "exports": "./dist/index.js",
   "module": "./dist/index.mjs",
@@ -10,7 +10,7 @@
   "files": [
     "dist/*"
   ],
-  "repository": "git@github.com:js-templates/typescript-library.git",
+  "repository": "git@github.com:nzod/prisma.git",
   "license": "MIT",
   "publishConfig": {
     "access": "public"
@@ -27,13 +27,19 @@
     "prepack": "pinst --disable",
     "postpack": "pinst --enable"
   },
-  "dependencies": {},
+  "dependencies": {
+    "@prisma/generator-helper": "^4.1.1",
+    "jscodeshift": "^0.13.1",
+    "ts-morph": "^15.1.0",
+    "zod": "^3.17.10"
+  },
   "devDependencies": {
     "@rollup/plugin-typescript": "^8.3.2",
     "@types/jest": "^27.5.1",
+    "@types/jscodeshift": "^0.11.5",
     "esbuild": "^0.14.39",
-    "eslint": "^8.16.0",
-    "eslint-kit": "^5.2.1",
+    "eslint": "^8.20.0",
+    "eslint-kit": "^6.1.0",
     "husky": "^8.0.1",
     "is-ci": "^3.0.1",
     "jest": "^28.1.0",
