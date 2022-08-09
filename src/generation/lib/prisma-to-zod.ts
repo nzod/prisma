@@ -1,4 +1,5 @@
 import { DMMF } from '@prisma/generator-helper'
+import { useContext } from '../../context'
 
 const scalarMap: Record<string, string | undefined> = {
   String: 'z.string()',
@@ -15,13 +16,15 @@ const scalarMap: Record<string, string | undefined> = {
 interface Options {
   annotation?: string | null
   nullish?: boolean
-  transformRelatedName?: (name: string) => string
+  transformSchemaName?: (name: string) => string
 }
 
 function toBase(field: DMMF.Field, options: Options = {}) {
-  const { transformRelatedName = (name) => name } = options
+  const { config } = useContext()
+  const { transformSchemaName = (name) => name } = options
 
   if (field.kind === 'scalar') {
+    if (field.type === 'Decimal' && config.useDecimalJs) return 'DecimalSchema'
     return scalarMap[field.type] ?? 'z.unknown()'
   }
 
@@ -30,7 +33,7 @@ function toBase(field: DMMF.Field, options: Options = {}) {
   }
 
   if (field.kind === 'object') {
-    return transformRelatedName(field.type)
+    return transformSchemaName(field.type)
   }
 
   return 'z.unknown()'

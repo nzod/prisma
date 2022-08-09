@@ -1,9 +1,38 @@
-import { generatorHandler } from '@prisma/generator-helper'
+import {
+  GeneratorConfig,
+  generatorHandler,
+  GeneratorOptions,
+} from '@prisma/generator-helper'
 import { Project } from 'ts-morph'
-import { SemicolonPreference } from 'typescript'
-import { ConfigSchema, GeneratorInput, PrismaOptions } from './config'
+import { ConfigSchema } from './config'
+import { initializeContext } from './context'
+import {
+  writeEnumsSource,
+  writeHelpersSource,
+  writeModelSource,
+} from './generation'
+import { formatFile } from './lib'
+import { PrismaOptions } from './types'
 
 const { version } = require('../package.json')
+
+function createPrismaOptions(options: GeneratorOptions): PrismaOptions {
+  const { schemaPath } = options
+
+  const outputPath = options.generator.output!.value
+
+  const isClientGenerator = (config: GeneratorConfig) =>
+    config.provider.value === 'prisma-client-js'
+
+  const clientPath =
+    options.otherGenerators.find(isClientGenerator)!.output!.value!
+
+  return {
+    clientPath,
+    outputPath,
+    schemaPath,
+  }
+}
 
 generatorHandler({
   onManifest() {
@@ -14,18 +43,6 @@ generatorHandler({
     }
   },
   onGenerate(options) {
-    const project = new Project()
-
-    const models = options.dmmf.datamodel.models
-    const enums = options.dmmf.datamodel.enums
-
-    const { schemaPath } = options
-
-    const outputPath = options.generator.output!.value
-    const clientPath = options.otherGenerators.find(
-      (each) => each.provider.value === 'prisma-client-js'
-    )!.output!.value!
-
     const parsing = ConfigSchema.safeParse(options.generator.config)
 
     if (!parsing.success) {
@@ -34,56 +51,24 @@ generatorHandler({
       )
     }
 
-    const input: GeneratorInput = {
+    const project = new Project()
+
+    initializeContext({
       project,
       options,
-      prisma: {
-        clientPath,
-        outputPath,
-        schemaPath,
-      },
+      prisma: createPrismaOptions(options),
       config: parsing.data,
-    }
-
-    const indexFile = project.createSourceFile(
-      `${outputPath}/index.ts`,
-      {},
-      { overwrite: true }
-    )
-
-    indexFile.formatText({
-      indentSize: 2,
-      convertTabsToSpaces: true,
-      semicolons: SemicolonPreference.Remove,
     })
 
-    models.forEach((model) => {
-      const sourceFile = project.createSourceFile(
-        `${outputPath}/${model.name.toLowerCase()}.ts`,
-        {},
-        { overwrite: true }
-      )
+    writeHelpersSource()
+    writeEnumsSource()
 
-      sourceFile.formatText({
-        indentSize: 2,
-        convertTabsToSpaces: true,
-        semicolons: SemicolonPreference.Remove,
-      })
-    })
-
-    if (enums.length > 0) {
-      const enumsFile = project.createSourceFile(
-        `${outputPath}/enums.ts`,
-        {},
-        { overwrite: true }
-      )
-
-      enumsFile.formatText({
-        indentSize: 2,
-        convertTabsToSpaces: true,
-        semicolons: SemicolonPreference.Remove,
-      })
+    for (const model of options.dmmf.datamodel.models) {
+      writeModelSource(model)
     }
+
+    const files = project.getSourceFiles()
+    files.forEach(formatFile)
 
     return project.save()
   },
