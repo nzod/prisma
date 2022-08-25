@@ -1,5 +1,6 @@
 import { DMMF } from '@prisma/generator-helper'
 import { useContext } from '../../context'
+import { findCustomSchema, findSchemaAppends } from '../docs'
 
 const scalarMap: Record<string, string | undefined> = {
   String: 'z.string()',
@@ -14,7 +15,6 @@ const scalarMap: Record<string, string | undefined> = {
 }
 
 interface Options {
-  annotation?: string | null
   nullish?: boolean
   transformSchemaName?: (name: string) => string
 }
@@ -22,6 +22,12 @@ interface Options {
 function toBase(field: DMMF.Field, options: Options = {}) {
   const { config } = useContext()
   const { transformSchemaName = (name) => name } = options
+
+  const custom = findCustomSchema(field.documentation)
+
+  if (custom) {
+    return custom
+  }
 
   if (field.kind === 'scalar') {
     if (field.type === 'Decimal' && config.useDecimalJs) return 'DecimalSchema'
@@ -40,13 +46,19 @@ function toBase(field: DMMF.Field, options: Options = {}) {
 }
 
 export function prismaToZod(field: DMMF.Field, options: Options = {}) {
-  const { annotation = null, nullish = false } = options
+  const { nullish = false } = options
 
   let zod = toBase(field, options)
 
-  if (annotation) zod += annotation
+  const appends = findSchemaAppends(field.documentation)
 
-  if (field.isList) zod += '.array()'
+  if (appends) {
+    zod += appends
+  }
+
+  if (field.isList) {
+    zod += '.array()'
+  }
 
   if (!field.isRequired && field.type !== 'Json') {
     if (nullish) zod += '.nullish()'

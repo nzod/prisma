@@ -8,6 +8,7 @@ import {
 } from 'ts-morph'
 import { SharedFiles } from '../../constants'
 import { useContext } from '../../context'
+import { findJSDocs } from '../docs'
 import { getImportPath, useSource } from '../lib/files'
 import { Names } from '../lib/names'
 import { prismaToZod } from '../lib/prisma-to-zod'
@@ -16,13 +17,7 @@ export function writeModelSource(model: DMMF.Model) {
   const modelSource = useSource(model.name)
   const entrySource = useSource(SharedFiles.Entry)
 
-  const importList = [
-    sharedImports.nzod,
-    sharedImports.dto,
-    sharedImports.imports,
-    sharedImports.helpers,
-    sharedImports.enums,
-  ]
+  const importList = Object.values(sharedImports)
     .map((creator) => creator(model))
     .filter(isImport)
 
@@ -39,6 +34,8 @@ export function writeModelSource(model: DMMF.Model) {
 }
 
 function writeSchema(file: SourceFile, model: DMMF.Model) {
+  const { config } = useContext()
+
   file.addVariableStatement({
     declarationKind: VariableDeclarationKind.Const,
     isExported: true,
@@ -53,6 +50,8 @@ function writeSchema(file: SourceFile, model: DMMF.Model) {
               model.fields
                 .filter((field) => field.kind !== 'object')
                 .forEach((field) => {
+                  findJSDocs(field.documentation).forEach(writer.writeLine)
+
                   writer
                     .write(`${field.name}: ${prismaToZod(field)},`)
                     .newLine()
@@ -64,15 +63,19 @@ function writeSchema(file: SourceFile, model: DMMF.Model) {
     ],
   })
 
-  file.addClass({
-    name: Names.Dto(model.name),
-    extends: `createNZodDto(${Names.Schema(model.name)})`,
-    isExported: true,
-    leadingTrivia: (writer) => writer.blankLineIfLastNot(),
-  })
+  if (config.generateDto) {
+    file.addClass({
+      name: Names.Dto(model.name),
+      extends: `createNZodDto(${Names.Schema(model.name)})`,
+      isExported: true,
+      leadingTrivia: (writer) => writer.blankLineIfLastNot(),
+    })
+  }
 }
 
 function writeInputSchema(file: SourceFile, model: DMMF.Model) {
+  const { config } = useContext()
+
   file.addVariableStatement({
     declarationKind: VariableDeclarationKind.Const,
     isExported: true,
@@ -87,6 +90,8 @@ function writeInputSchema(file: SourceFile, model: DMMF.Model) {
               model.fields
                 .filter((field) => field.kind !== 'object')
                 .forEach((field) => {
+                  findJSDocs(field.documentation).forEach(writer.writeLine)
+
                   writer
                     .write(
                       `${field.name}: ${prismaToZod(field, { nullish: true })},`
@@ -100,12 +105,14 @@ function writeInputSchema(file: SourceFile, model: DMMF.Model) {
     ],
   })
 
-  file.addClass({
-    name: Names.InputDto(model.name),
-    extends: `createNZodDto(${Names.InputSchema(model.name)})`,
-    isExported: true,
-    leadingTrivia: (writer) => writer.blankLineIfLastNot(),
-  })
+  if (config.generateDto) {
+    file.addClass({
+      name: Names.InputDto(model.name),
+      extends: `createNZodDto(${Names.InputSchema(model.name)})`,
+      isExported: true,
+      leadingTrivia: (writer) => writer.blankLineIfLastNot(),
+    })
+  }
 }
 
 function writeRelatedSchema(file: SourceFile, model: DMMF.Model) {
@@ -154,6 +161,8 @@ function writeRelatedSchema(file: SourceFile, model: DMMF.Model) {
             .write(`z.lazy(() => ${Names.Schema(model.name)}.extend(`)
             .inlineBlock(() => {
               relationFields.forEach((field) => {
+                findJSDocs(field.documentation).forEach(writer.writeLine)
+
                 const schema = prismaToZod(field, {
                   transformSchemaName: Names.RelatedSchema,
                 })
@@ -215,6 +224,8 @@ function writeRelatedInputSchema(file: SourceFile, model: DMMF.Model) {
             .write(`z.lazy(() => ${Names.InputSchema(model.name)}.extend(`)
             .inlineBlock(() => {
               relationFields.forEach((field) => {
+                findJSDocs(field.documentation).forEach(writer.writeLine)
+
                 const schema = prismaToZod(field, {
                   transformSchemaName: Names.RelatedInputSchema,
                   nullish: true,
@@ -230,11 +241,11 @@ function writeRelatedInputSchema(file: SourceFile, model: DMMF.Model) {
   })
 }
 
+type ImportCreator = (model: DMMF.Model) => ImportDeclarationStructure | null
+
 function isImport(value: unknown): value is ImportDeclarationStructure {
   return Boolean(value)
 }
-
-type ImportCreator = (model: DMMF.Model) => ImportDeclarationStructure | null
 
 const sharedImports: Record<string, ImportCreator> = {
   nzod: () => ({
@@ -242,15 +253,25 @@ const sharedImports: Record<string, ImportCreator> = {
     moduleSpecifier: '@nzod/z',
     namespaceImport: 'z',
   }),
-  dto: () => ({
-    kind: StructureKind.ImportDeclaration,
-    moduleSpecifier: '@nzod/dto',
-    namedImports: ['createNZodDto'],
-  }),
-  helpers: (model) => {
+  dto: () => {
     const { config } = useContext()
 
-    if (!config.useDecimalJs) return null
+    if (!config.generateDto) {
+      return null
+    }
+
+    return {
+      kind: StructureKind.ImportDeclaration,
+      moduleSpecifier: '@nzod/dto',
+      namedImports: ['createNZodDto'],
+    }
+  },
+  decimalJs: (model) => {
+    const { config } = useContext()
+
+    if (!config.useDecimalJs) {
+      return null
+    }
 
     const decimalFields = model.fields.filter(
       (field) => field.type === 'Decimal'
@@ -282,7 +303,9 @@ const sharedImports: Record<string, ImportCreator> = {
   imports: () => {
     const { config, prisma } = useContext()
 
-    if (!config.imports) return null
+    if (!config.imports) {
+      return null
+    }
 
     const importPath = path.relative(
       prisma.outputPath,

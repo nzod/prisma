@@ -1,6 +1,5 @@
 <p align="center">
-  <img src="logo.svg" width="200" align="center" alt="Typescript Library Logo" style="max-width: 100%;" />
-  <h1></h1>
+  <br>
   <p align="center">
     ✨ Generate N'Zod contracts and DTOs from Prisma Schema ✨
   </p>
@@ -45,16 +44,89 @@ Go to [`release/latest`](https://github.com/nzod/prisma/tree/release/latest) bra
 
 ## Installation
 
-NPM:
+```shell
+yarn add @nzod/prisma
 
-```sh
 npm install @nzod/prisma
 ```
 
-Yarn:
+## Usage
 
-```sh
-yarn add @nzod/prisma
+```prisma
+generator nzod {
+  provider = "nzod-prisma"
+  output   = "../src/generated/nzod"
+}
+```
+
+### What will be generated?
+
+For each model:
+
+- `{ModelName}Schema`
+
+  Exact `prisma` -> `nzod` mapping.
+
+- `{ModelName}InputSchema`
+
+  The same as the regular schema, but nullable fields are optional.
+
+- `{ModelName}RelatedSchema`
+
+  If the model has relations, the related schema will be generated.  
+  It contains all fields from the regular schema plus relations.
+
+- `{ModelName}RelatedInputSchema`
+
+  If the model has relations, the related schema will be generated.  
+  It contains all fields from the input schema plus relations (optional when nullable).
+
+- `{ModelName}Dto` (when `generateDto` is set to `true`)
+
+  The DTO constructor for the regular schema.
+
+- `{ModelName}InputDto` (when `generateDto` is set to `true`)
+
+  The DTO constructor for the regular schema.
+
+### Creating DTOs
+
+Install N'Zod DTO library:
+
+```shell
+yarn add @nzod/dto
+
+npm install @nzod/dto
+```
+
+Set `generateDto` to `true`:
+
+```prisma
+generator nzod {
+  provider    = "nzod-prisma"
+  output      = "../src/generated/nzod"
+  generateDto = true
+}
+```
+
+### Using `decimal.js` for Decimal fields
+
+Install `decimal.js`:
+
+```shell
+yarn add decimal.js
+
+npm install decimal.js
+```
+
+Set `useDecimalJs` to `true`:
+
+```prisma
+generator nzod {
+  provider     = "nzod-prisma"
+  output       = "../src/generated/nzod"
+  useDecimalJs = true
+}
 ```
 
 ## Contributing
